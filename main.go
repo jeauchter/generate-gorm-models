@@ -52,11 +52,11 @@ type Table struct {
 
 func main() {
 	destPath := flag.String("dest", ".", "Destination path for generated models")
-	envFile := flag.String("env", ".env", "Path to .env file")
+	envFile := flag.String("env", "", "Path to .env file")
 	dbUser := flag.String("dbuser", "", "Database user")
 	dbPassword := flag.String("dbpassword", "", "Database password")
-	dbHost := flag.String("dbhost", "127.0.0.1", "Database host")
-	dbPort := flag.String("dbport", "3306", "Database port")
+	dbHost := flag.String("dbhost", "", "Database host")
+	dbPort := flag.String("dbport", "", "Database port")
 	dbName := flag.String("dbname", "", "Database name")
 	tables := flag.String("tables", "", "Comma-separated list of tables to generate models for")
 	flag.Parse()
@@ -117,15 +117,34 @@ func generateModel(db *gorm.DB, tableName, destPath string) {
 		modelColumnType := columnType.DatabaseTypeName()
 		// Add special handling for datetime columns
 		switch columnType.DatabaseTypeName() {
-		case "datetime", "timestamp":
+		case "datetime", "timestamp", "date", "time":
 			modelColumnType = "time.Time"
 			if !strings.Contains(strings.Join(modelImports, ","), "time") {
 				modelImports = append(modelImports, "time")
 			}
-		case "tinyint":
+		case "tinyint", "smallint", "mediumint", "int", "integer", "bigint":
 			modelColumnType = "int"
-		case "varchar":
+		case "float", "double", "real":
+			modelColumnType = "float64"
+		case "decimal", "numeric":
+			modelColumnType = "string" // or use a custom decimal type
+		case "char", "varchar", "tinytext", "text", "mediumtext", "longtext":
 			modelColumnType = "string"
+		case "binary", "varbinary", "tinyblob", "blob", "mediumblob", "longblob":
+			modelColumnType = "[]byte"
+		case "bit":
+			modelColumnType = "[]uint8"
+		case "bool", "boolean":
+			modelColumnType = "bool"
+		case "json":
+			modelColumnType = "json.RawMessage"
+			if !strings.Contains(strings.Join(modelImports, ","), "encoding/json") {
+				modelImports = append(modelImports, "encoding/json")
+			}
+		case "enum", "set":
+			modelColumnType = "string"
+		default:
+			modelColumnType = "string" // default to string for any other types
 		}
 
 		column := Column{
